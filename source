@@ -1,0 +1,245 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "By yux",
+    SubTitle = "discord: ryanx992",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
+})
+
+--Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
+local Tabs = {
+    Main = Window:AddTab({ Title = "Duplicate Fish", Icon = "" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+local RS = game:GetService("ReplicatedStorage")
+local FishingConfig = require(
+    RS:WaitForChild("FishingYahiko"):WaitForChild("FishingConfig")
+)
+
+local FishDataByName = {}
+
+for _, fish in ipairs(FishingConfig.FishTable) do
+    FishDataByName[fish.name] = fish
+end
+
+
+local RS = game:GetService("ReplicatedStorage")
+local FishFolder = RS:WaitForChild("FishingYahiko")
+    :WaitForChild("Assets")
+    :WaitForChild("FishModel")
+
+-- Ambil semua nama model ikan
+local FishList = {}
+for _, fish in ipairs(FishFolder:GetChildren()) do
+    if fish:IsA("Model") then
+        table.insert(FishList, fish.Name)
+    end
+end
+
+
+local Options = Fluent.Options
+
+do
+    Fluent:Notify({
+        Title = "Notification",
+        Content = "This is a notification",
+        SubContent = "SubContent",
+        Duration = 5
+    })
+
+    local SelectedFish = FishList[1] -- default fish
+    local AutoDupe = false
+    local DupeDelay = 0.5 
+
+    local function DupeOnce()
+        if not SelectedFish then
+            warn("No fish selected")
+            return
+        end
+    
+        local fishData = FishDataByName[SelectedFish]
+        if not fishData then
+            warn("Fish data not found:", SelectedFish)
+            return
+        end
+    
+        local weight = FishingConfig.GenerateFishWeight(
+            fishData,
+            10,
+            fishData.maxKg
+        )
+    
+        local args = {
+            {
+                hookPosition = Vector3.new(
+                    2069.06982421875,
+                    450.6968688964844,
+                    459.4352111816406
+                ),
+                name = fishData.name,
+                rarity = fishData.rarity,
+                weight = weight
+            }
+        }
+    
+        RS.FishingYahiko.YahikoGiver:FireServer(unpack(args))
+    
+        print("Dupe 1x:", fishData.name, fishData.rarity, weight)
+    end
+
+    local Dropdown = Tabs.Main:AddDropdown("FishDropdown", {
+        Title = "Select Fish",
+        Values = FishList,
+        Multi = false,
+        Default = 1,
+    })
+    
+    Dropdown:OnChanged(function(Value)
+        SelectedFish = Value
+        print("Selected Fish:", Value)
+    end)
+        
+
+     Tabs.Main:AddButton({
+        Title = "Dupe Fish 1x",
+        Description = "Duplicate selected fish once",
+        Callback = function()
+            Window:Dialog({
+                Title = "Confirm Dupe",
+                Content = "Dupe fish " .. SelectedFish .. "?",
+                Buttons = {
+                    {
+                        Title = "Confirm",
+                        Callback = function()
+                            DupeOnce()
+                        end
+                    },
+                    {
+                        Title = "Cancel"
+                    }
+                }
+            })
+        end
+    })
+
+    Tabs.Main:AddParagraph({
+        Title = "Auto Duplicate Fish Menu",
+        Content = "Bagian Ini Adalah bagian Auto Dupe"
+    })
+
+    local Toggle = Tabs.Main:AddToggle("FishToggle", {
+        Title = "Auto Duplicate:",
+        Default = false
+    })
+    
+    Toggle:OnChanged(function(Value)
+        AutoDupe = Value
+    
+        if AutoDupe then
+            task.spawn(function()
+                while AutoDupe do
+                    if not SelectedFish then
+                        warn("No fish selected")
+                        task.wait(DupeDelay)
+                        continue
+                    end
+    
+                    local fishData = FishDataByName[SelectedFish]
+                    if not fishData then
+                        warn("Fish data not found:", SelectedFish)
+                        task.wait(DupeDelay)
+                        continue
+                    end
+    
+                    local weight = FishingConfig.GenerateFishWeight(
+                        fishData,
+                        10,
+                        fishData.maxKg
+                    )
+    
+                    local args = {
+                        {
+                            hookPosition = Vector3.new(
+                                2069.06982421875,
+                                450.6968688964844,
+                                459.4352111816406
+                            ),
+                            name = fishData.name,
+                            rarity = fishData.rarity,
+                            weight = weight
+                        }
+                    }
+                    RS.FishingYahiko.YahikoGiver:FireServer(unpack(args))
+    
+                    print("Auto Duped:", fishData.name, fishData.rarity, weight)
+    
+                    task.wait(DupeDelay)
+                end
+            end)
+        end
+    end)
+
+    local Input = Tabs.Main:AddInput("DupeDelayInput", {
+        Title = "Dupe Delay (seconds)",
+        Default = tostring(DupeDelay),
+        Placeholder = "Rekomendasi 0.3",
+        Numeric = true, -- ✅ hanya angka
+        Finished = false,
+    })
+
+    Input:OnChanged(function()
+        local value = tonumber(Input.Value)
+    
+        if value and value > 0 then
+            DupeDelay = value
+            print("Dupe Delay set to:", DupeDelay)
+        else
+            warn("Invalid delay value")
+        end
+    end)
+
+end
+
+
+-- Addons:
+-- SaveManager (Allows you to have a configuration system)
+-- InterfaceManager (Allows you to have a interface managment system)
+
+-- Hand the library over to our managers
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+-- Ignore keys that are used by ThemeManager.
+-- (we dont want configs to save themes, do we?)
+SaveManager:IgnoreThemeSettings()
+
+-- You can add indexes of elements the save manager should ignore
+SaveManager:SetIgnoreIndexes({})
+
+-- use case for doing it this way:
+-- a script hub could have themes in a global folder
+-- and game configs in a separate folder per game
+InterfaceManager:SetFolder("FluentScriptHub")
+SaveManager:SetFolder("FluentScriptHub/specific-game")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Fluent",
+    Content = "The script has been loaded.",
+    Duration = 8
+})
+
+-- You can use the SaveManager:LoadAutoloadConfig() to load a config
+-- which has been marked to be one that auto loads!
+SaveManager:LoadAutoloadConfig()
